@@ -141,7 +141,12 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     }
 
     // Extract location information
-    if (!newData.location) newData.location = {}
+    if (!newData.location) newData.location = {
+      address: '',
+      city: '',
+      state: '',
+      zipCode: ''
+    }
 
     const addressMatch = lowerInput.match(/(?:at|on|near)\s+(.+?)(?:\s+in\s+|\s*,\s*|$)/i)
     if (addressMatch && !newData.location.address) {
@@ -164,7 +169,13 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     }
 
     // Extract vehicle information
-    if (!newData.vehicleInfo) newData.vehicleInfo = {}
+    if (!newData.vehicleInfo) newData.vehicleInfo = {
+      make: '',
+      model: '',
+      year: 0,
+      color: '',
+      licensePlate: ''
+    }
 
     const vehicleMatch = lowerInput.match(/(\d{4})\s+(\w+)\s+(\w+)/i)
     if (vehicleMatch && !newData.vehicleInfo.make) {
