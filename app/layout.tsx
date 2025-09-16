@@ -19,8 +19,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Navigation />
-        <main className="min-h-screen pt-16">
-          {children}
+        <main className="min-h-screen pt-24 md:pt-20">
+          <div className="fade-in">
+            {children}
+          </div>
         </main>
       </body>
     </html>
