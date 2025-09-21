@@ -164,8 +164,8 @@ export async function GET(request: NextRequest) {
 
   try {
     // This would typically fetch from a real database
-    const mockDatabase = await import('@/lib/mockData')
-    const claim = mockDatabase.mockDatabase.claims[claimId]
+    const { mockDatabase } = await import('@/lib/mockData')
+    const claim = mockDatabase.claims[claimId]
 
     if (!claim) {
       return NextResponse.json(

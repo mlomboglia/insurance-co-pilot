@@ -297,7 +297,7 @@ export class ClaimProcessor {
 
     // Time of day check
     if (hour >= 8 && hour < 18) {
-      return coverageFactors.timeOfDayMultiplier.business
+      return coverageFactors.timeOfDayMultiplier.day
     } else if (hour >= 18 && hour < 22) {
       return coverageFactors.timeOfDayMultiplier.evening
     } else {

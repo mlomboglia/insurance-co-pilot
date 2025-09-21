@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
-import { User, Bot, AlertCircle, Clock } from 'lucide-react'
+import { useRef, useEffect, useState } from 'react'
+import { User, Bot, AlertCircle, Clock, ChevronDown } from 'lucide-react'
 import { ConversationMessage } from '@/types/conversation'
 import { formatDate } from '@/lib/utils'
 
@@ -17,14 +17,47 @@ export default function ConversationDisplay({
   isListening
 }: ConversationDisplayProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [isUserScrolling, setIsUserScrolling] = useState(false)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (shouldAutoScroll && !isUserScrolling) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
+  // Handle manual scrolling
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 50 // 50px threshold
+
+    if (!isAtBottom) {
+      setIsUserScrolling(true)
+      setShouldAutoScroll(false)
+    } else {
+      setIsUserScrolling(false)
+      setShouldAutoScroll(true)
+    }
+  }
+
+  // Auto-scroll only for new assistant messages when user isn't manually scrolling
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, currentTranscript])
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && lastMessage.type === 'assistant' && shouldAutoScroll) {
+      // Small delay to allow message rendering
+      setTimeout(scrollToBottom, 100)
+    }
+  }, [messages])
+
+  // Auto-scroll for current transcript only if at bottom
+  useEffect(() => {
+    if (currentTranscript && shouldAutoScroll) {
+      scrollToBottom()
+    }
+  }, [currentTranscript])
 
   const getMessageIcon = (type: ConversationMessage['type']) => {
     switch (type) {
@@ -57,8 +90,12 @@ export default function ConversationDisplay({
   }
 
   return (
-    <div className="flex flex-col h-96 bg-gray-50 rounded-lg border border-gray-200">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex flex-col h-96 bg-gray-50 rounded-lg border border-gray-200 relative">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         {messages.length === 0 && (
           <div className="text-center text-gray-500 py-8">
             <Bot className="h-12 w-12 mx-auto mb-4 text-gray-400" />
@@ -111,6 +148,21 @@ export default function ConversationDisplay({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Scroll to bottom button */}
+      {!shouldAutoScroll && (
+        <button
+          onClick={() => {
+            setShouldAutoScroll(true)
+            setIsUserScrolling(false)
+            scrollToBottom()
+          }}
+          className="absolute bottom-16 right-4 bg-primary-600 hover:bg-primary-700 text-white p-2 rounded-full shadow-lg transition-colors z-10"
+          title="Scroll to bottom"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
 
       {/* Status bar */}
       <div className="px-4 py-2 bg-white border-t border-gray-200 rounded-b-lg">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis'
 import ConversationDisplay from './ConversationDisplay'
@@ -36,6 +36,10 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
   })
 
   const [isProcessing, setIsProcessing] = useState(false)
+  const [canInterrupt, setCanInterrupt] = useState(true)
+  const hasGreeted = useRef(false)
+  const processingTimeoutRef = useRef<NodeJS.Timeout>()
+  const speakingTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Add message to conversation
   const addMessage = useCallback((type: ConversationMessage['type'], content: string, isProcessing = false) => {
@@ -55,36 +59,46 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     return message.id
   }, [])
 
-  // Initial greeting
+  // Initial greeting - run only once
   useEffect(() => {
-    if (conversationState.messages.length === 0) {
+    if (!hasGreeted.current && conversationState.messages.length === 0) {
       const greeting = "Hello! I'm your AI assistant for roadside assistance. I'm here to help you file a claim quickly and efficiently. Please tell me about your situation, including your location and what's happening with your vehicle."
       addMessage('assistant', greeting)
       speak(greeting)
+      hasGreeted.current = true
     }
   }, [addMessage, speak, conversationState.messages.length])
 
   // Process user speech when final transcript changes
   useEffect(() => {
-    if (finalTranscript && !isProcessing) {
+    if (finalTranscript && !isProcessing && canInterrupt) {
       processUserInput(finalTranscript)
       resetTranscript()
     }
-  }, [finalTranscript, isProcessing])
+  }, [finalTranscript, isProcessing, canInterrupt])
 
   // Mock AI processing function
   const processUserInput = async (userInput: string) => {
     if (!userInput.trim()) return
 
+    // Stop any current speaking
+    stopSpeaking()
+    if (speakingTimeoutRef.current) {
+      clearTimeout(speakingTimeoutRef.current)
+    }
+
     // Add user message
     addMessage('user', userInput)
     setIsProcessing(true)
+    setCanInterrupt(false)
 
     // Add processing message
     const processingId = addMessage('assistant', 'Let me process that information...', true)
 
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    // Simulate AI processing delay (shorter and more realistic)
+    await new Promise(resolve => {
+      processingTimeoutRef.current = setTimeout(resolve, 800)
+    })
 
     // Extract information from user input (mock AI processing)
     const extractedData = extractClaimInformation(userInput, conversationState.collectedData)
@@ -104,7 +118,13 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
 
     // Add AI response
     addMessage('assistant', response)
-    speak(response)
+
+    // Delay before speaking to allow user to read
+    speakingTimeoutRef.current = setTimeout(() => {
+      speak(response)
+      // Allow interruption after AI starts speaking
+      setTimeout(() => setCanInterrupt(true), 1000)
+    }, 500)
 
     // Notify parent components
     onConversationUpdate?.(newState)
@@ -177,15 +197,57 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
       licensePlate: ''
     }
 
-    const vehicleMatch = lowerInput.match(/(\d{4})\s+(\w+)\s+(\w+)/i)
+    // Try multiple vehicle patterns
+    const vehicleMatch = lowerInput.match(/(\d{4})\s+(\w+)\s+(\w+)/i) ||          // "2020 blue toyota"
+                        lowerInput.match(/(\d{4})\s+(\w+)/i) ||                  // "2020 toyota"
+                        lowerInput.match(/(\w+)\s+(\w+)\s+(\d{4})/i)             // "blue toyota 2020"
+
     if (vehicleMatch && !newData.vehicleInfo.make) {
-      newData.vehicleInfo.year = parseInt(vehicleMatch[1])
-      newData.vehicleInfo.make = vehicleMatch[2]
-      newData.vehicleInfo.model = vehicleMatch[3]
+      if (vehicleMatch[0].match(/^\d{4}/)) {
+        // Year first pattern
+        newData.vehicleInfo.year = parseInt(vehicleMatch[1])
+        newData.vehicleInfo.make = vehicleMatch[2]
+        if (vehicleMatch[3] && !vehicleMatch[3].match(/\d{4}/)) {
+          newData.vehicleInfo.model = vehicleMatch[3]
+        }
+      } else {
+        // Make first pattern
+        newData.vehicleInfo.make = vehicleMatch[1]
+        newData.vehicleInfo.model = vehicleMatch[2]
+        if (vehicleMatch[3] && vehicleMatch[3].match(/\d{4}/)) {
+          newData.vehicleInfo.year = parseInt(vehicleMatch[3])
+        }
+      }
+    }
+
+    // Extract individual components if not found in combined pattern
+    if (!newData.vehicleInfo.make) {
+      const makeMatch = lowerInput.match(/(?:drive|driving|have)\s+(?:a\s+)?(\w+)/i) ||
+                       lowerInput.match(/(toyota|honda|ford|chevrolet|nissan|bmw|audi|mercedes|volkswagen|hyundai|kia|mazda|subaru|jeep|dodge|chrysler|buick|cadillac|gmc|lincoln|acura|infiniti|lexus|volvo|jaguar|porsche|tesla)/i)
+      if (makeMatch) {
+        newData.vehicleInfo.make = makeMatch[1]
+      }
+    }
+
+    if (!newData.vehicleInfo.model) {
+      const modelMatch = lowerInput.match(/(?:camry|corolla|accord|civic|f-150|silverado|altima|sentra|focus|escape|explorer|mustang|prius|rav4|highlander|pilot|cr-v|x3|x5|a4|c-class|jetta|passat|elantra|sonata|optima|soul|cx-5|outback|forester|wrangler|charger|challenger|300|enclave|escalade|sierra|navigator|tlx|q50|es|rx|xc90|f-pace|911|model\s+[3sxy])/i)
+      if (modelMatch) {
+        newData.vehicleInfo.model = modelMatch[0]
+      }
+    }
+
+    if (!newData.vehicleInfo.year) {
+      const yearMatch = lowerInput.match(/(19|20)\d{2}/i)
+      if (yearMatch) {
+        const year = parseInt(yearMatch[0])
+        if (year >= 1990 && year <= new Date().getFullYear() + 1) {
+          newData.vehicleInfo.year = year
+        }
+      }
     }
 
     const colorMatch = lowerInput.match(/(?:color|colored)\s+(\w+)/i) ||
-                      lowerInput.match(/(\w+)\s+(?:colored|car|vehicle)/i)
+                      lowerInput.match(/(red|blue|black|white|silver|gray|grey|green|yellow|orange|purple|brown|tan|beige|gold|pink)\s+(?:colored|car|vehicle|\w+)/i)
     if (colorMatch && !newData.vehicleInfo.color) {
       newData.vehicleInfo.color = colorMatch[1]
     }
@@ -227,6 +289,13 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     return newData
   }
 
+  // Check if vehicle info has enough data to proceed
+  const hasMinimalVehicleInfo = (vehicleInfo?: any) => {
+    if (!vehicleInfo) return false
+    // Need at least make, or make + model, or make + year
+    return vehicleInfo.make && (vehicleInfo.model || vehicleInfo.year > 0)
+  }
+
   // Determine next conversation step
   const determineNextStep = (data: Partial<ClaimData>, currentStep: ConversationStep): ConversationStep => {
     if (isClaimDataComplete(data)) return 'complete'
@@ -234,7 +303,12 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     if (!data.customerName) return 'collecting-name'
     if (!data.policyNumber) return 'collecting-policy'
     if (!data.location?.address) return 'collecting-location'
-    if (!data.vehicleInfo?.make) return 'collecting-vehicle'
+    if (!hasMinimalVehicleInfo(data.vehicleInfo)) {
+      // Only ask for vehicle info once per conversation unless we have nothing
+      if (currentStep !== 'collecting-vehicle' || !data.vehicleInfo?.make) {
+        return 'collecting-vehicle'
+      }
+    }
     if (!data.issueType || !data.issueDescription) return 'collecting-issue'
 
     return 'confirming-details'
@@ -253,7 +327,15 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
         return "I need to know your exact location for the roadside assistance. Can you tell me the street address where you're located?"
 
       case 'collecting-vehicle':
-        return "Now I need information about your vehicle. Can you tell me the make, model, year, and color of your car?"
+        const hasPartialVehicle = data.vehicleInfo?.make || data.vehicleInfo?.model || data.vehicleInfo?.year
+        if (hasPartialVehicle) {
+          const missingParts = []
+          if (!data.vehicleInfo?.make) missingParts.push('make')
+          if (!data.vehicleInfo?.model) missingParts.push('model')
+          if (!data.vehicleInfo?.year) missingParts.push('year')
+          return `Thanks! I have some vehicle information. Can you also tell me the ${missingParts.join(' and ')} of your vehicle?`
+        }
+        return "Now I need information about your vehicle. Can you tell me the make, model, and year? For example, '2020 Toyota Camry'."
 
       case 'collecting-issue':
         return "Can you describe the specific problem you're experiencing with your vehicle? This will help us send the right type of assistance."
@@ -283,15 +365,38 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
 
   // Reset conversation
   const resetConversation = () => {
+    // Clear all timeouts
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current)
+    }
+    if (speakingTimeoutRef.current) {
+      clearTimeout(speakingTimeoutRef.current)
+    }
+
     setConversationState({
       step: 'greeting',
       collectedData: {},
       isComplete: false,
       messages: []
     })
+    setIsProcessing(false)
+    setCanInterrupt(true)
     resetTranscript()
     stopSpeaking()
+    hasGreeted.current = false
   }
+
+  // Add cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current)
+      }
+      if (speakingTimeoutRef.current) {
+        clearTimeout(speakingTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className="grid lg:grid-cols-2 gap-8">

@@ -26,28 +26,24 @@ import type { Claim, ClaimStatus, AIDecision, ServiceProvider, DecisionAuditEntr
 import { formatDate } from '@/lib/utils'
 import { clsx } from 'clsx'
 
+// Import mock data for the agent dashboard
+import { mockHistoricalClaims, mockServiceProviders } from '@/lib/mockData'
+
+// Enhanced AI decisions with more comprehensive data
 const mockAIDecisions: AIDecision[] = [
   {
     id: 'DEC-001',
     claimId: 'CLM-2024-001',
     decision: 'covered',
     confidence: 0.92,
-    reasoning: 'Standard roadside assistance coverage applies. Customer has active policy with tire repair benefits.',
+    reasoning: 'Standard roadside assistance coverage applies. Customer has active Premium Plus policy with tire repair benefits.',
     factors: {
-      positive: ['Active policy', 'Covered service type', 'Valid location'],
+      positive: ['Active policy', 'Covered service type', 'Valid location', 'Under monthly limit'],
       negative: [],
       neutral: ['Standard deductible applies']
     },
     recommendedAction: 'Dispatch roadside assistance immediately',
-    serviceProvider: {
-      id: 'SP-001',
-      name: 'QuickFix Towing',
-      type: 'towing',
-      rating: 4.8,
-      estimatedArrival: 25,
-      distance: 3.2,
-      cost: 85
-    },
+    serviceProvider: mockServiceProviders[0],
     estimatedCost: 85,
     timestamp: new Date(Date.now() - 30 * 60 * 1000)
   },
@@ -65,62 +61,58 @@ const mockAIDecisions: AIDecision[] = [
     recommendedAction: 'Agent review required - service limit exceeded',
     estimatedCost: 75,
     timestamp: new Date(Date.now() - 45 * 60 * 1000)
+  },
+  {
+    id: 'DEC-003',
+    claimId: 'CLM-2024-003',
+    decision: 'not-covered',
+    confidence: 0.95,
+    reasoning: 'Lockout service is not covered under Basic plan. Customer needs Premium or Premium Plus for lockout coverage.',
+    factors: {
+      positive: ['Active policy'],
+      negative: ['Service not covered in plan', 'Basic plan limitations'],
+      neutral: ['Valid customer', 'Standard location']
+    },
+    recommendedAction: 'Offer plan upgrade or provide locksmith referrals',
+    estimatedCost: 0,
+    timestamp: new Date(Date.now() - 180 * 60 * 1000)
+  },
+  {
+    id: 'DEC-004',
+    claimId: 'CLM-2024-004',
+    decision: 'covered',
+    confidence: 0.88,
+    reasoning: 'Electric vehicle towing covered under comprehensive plan. Specialized EV transport required.',
+    factors: {
+      positive: ['Active policy', 'EV towing coverage', 'Premium customer'],
+      negative: [],
+      neutral: ['Higher cost due to EV requirements']
+    },
+    recommendedAction: 'Dispatch specialized EV towing service',
+    serviceProvider: mockServiceProviders[2],
+    estimatedCost: 150,
+    timestamp: new Date(Date.now() - 240 * 60 * 1000)
+  },
+  {
+    id: 'DEC-005',
+    claimId: 'CLM-2024-005',
+    decision: 'covered',
+    confidence: 0.96,
+    reasoning: 'Fuel delivery service approved. Customer stranded on highway with emergency priority.',
+    factors: {
+      positive: ['Active policy', 'Covered service', 'Emergency location', 'Premium customer'],
+      negative: [],
+      neutral: ['Standard fuel delivery fee']
+    },
+    recommendedAction: 'Priority fuel delivery dispatch',
+    serviceProvider: mockServiceProviders[4],
+    estimatedCost: 45,
+    timestamp: new Date(Date.now() - 300 * 60 * 1000)
   }
 ]
 
-const mockClaims: Claim[] = [
-  {
-    id: 'CLM-2024-001',
-    customerId: 'CUST-001',
-    customerName: 'John Smith',
-    customerPhone: '(555) 123-4567',
-    vehicleInfo: {
-      make: 'Toyota',
-      model: 'Camry',
-      year: 2020,
-      color: 'Blue',
-      licensePlate: 'ABC123'
-    },
-    location: {
-      address: '123 Main St',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62701'
-    },
-    issueType: 'flat-tire',
-    description: 'Front left tire is flat, need roadside assistance',
-    status: 'pending',
-    priority: 'medium',
-    createdAt: new Date(Date.now() - 30 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 30 * 60 * 1000),
-  },
-  {
-    id: 'CLM-2024-002',
-    customerId: 'CUST-002',
-    customerName: 'Sarah Johnson',
-    customerPhone: '(555) 987-6543',
-    vehicleInfo: {
-      make: 'Honda',
-      model: 'Civic',
-      year: 2019,
-      color: 'Red',
-      licensePlate: 'XYZ789'
-    },
-    location: {
-      address: '456 Oak Ave',
-      city: 'Springfield',
-      state: 'IL',
-      zipCode: '62702'
-    },
-    issueType: 'dead-battery',
-    description: 'Car won\'t start, battery appears to be dead',
-    status: 'in-progress',
-    priority: 'high',
-    createdAt: new Date(Date.now() - 45 * 60 * 1000),
-    updatedAt: new Date(Date.now() - 10 * 60 * 1000),
-    assignedAgentId: 'AGENT-001'
-  }
-]
+// Use the enhanced historical claims data
+const mockClaims: Claim[] = mockHistoricalClaims
 
 const mockAuditTrail: Record<string, DecisionAuditEntry[]> = {
   'CLM-2024-001': [

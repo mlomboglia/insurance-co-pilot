@@ -107,13 +107,14 @@ export default function CustomerPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">
+        <h1 className="text-3xl font-bold gradient-text mb-4">
           File a Roadside Assistance Claim
         </h1>
-        <p className="text-gray-600 max-w-2xl mx-auto">
+        <p className="text-slate-600 max-w-2xl mx-auto">
           Use our AI-powered voice assistant to quickly file your roadside assistance claim.
-          Just speak naturally about your situation and we'll gather all the necessary information.
+          Simply click the microphone and describe your situation naturally.
         </p>
       </div>
 
