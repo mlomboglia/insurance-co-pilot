@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Car, Users, ClipboardList, Home, Shield } from 'lucide-react'
+import { Car, Users, Home, Shield, MessageSquare } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const navigationItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/customer', label: 'Customer', icon: Car },
   { href: '/agent', label: 'Agent Dashboard', icon: Users },
-  { href: '/status', label: 'Claim Status', icon: ClipboardList },
+  { href: '/notifications', label: 'SMS Notifications', icon: MessageSquare },
 ]
 
 export default function Navigation() {

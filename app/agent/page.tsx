@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Search,
   Filter,
@@ -25,6 +25,8 @@ import {
 import type { Claim, ClaimStatus, AIDecision, ServiceProvider, DecisionAuditEntry } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { clsx } from 'clsx'
+import { claimsStore } from '@/lib/claimsStore'
+import SMSNotificationComponent from '@/components/SMSNotification'
 
 // Import mock data for the agent dashboard
 import { mockHistoricalClaims, mockServiceProviders } from '@/lib/mockData'
@@ -153,11 +155,30 @@ const mockAuditTrail: Record<string, DecisionAuditEntry[]> = {
 }
 
 export default function AgentPage() {
-  const [claims] = useState<Claim[]>(mockClaims)
-  const [decisions] = useState<AIDecision[]>(mockAIDecisions)
+  const [claims, setClaims] = useState<Claim[]>(mockClaims)
+  const [decisions, setDecisions] = useState<AIDecision[]>(mockAIDecisions)
   const [selectedStatus, setSelectedStatus] = useState<ClaimStatus | 'all'>('all')
   const [selectedClaim, setSelectedClaim] = useState<string | null>(null)
   const [expandedClaim, setExpandedClaim] = useState<string | null>(null)
+
+  // Subscribe to real-time claims updates
+  useEffect(() => {
+    const unsubscribe = claimsStore.addListener((newClaims, newDecisions) => {
+      // Combine with mock data, with real claims first
+      setClaims([...newClaims, ...mockClaims])
+      setDecisions([...newDecisions, ...mockAIDecisions])
+    })
+
+    // Initialize with current data
+    const currentClaims = claimsStore.getClaims()
+    const currentDecisions = claimsStore.getDecisions()
+    if (currentClaims.length > 0 || currentDecisions.length > 0) {
+      setClaims([...currentClaims, ...mockClaims])
+      setDecisions([...currentDecisions, ...mockAIDecisions])
+    }
+
+    return unsubscribe
+  }, [])
 
   const filteredClaims = selectedStatus === 'all'
     ? claims
@@ -231,6 +252,25 @@ export default function AgentPage() {
 
   const handleAgentAction = (claimId: string, action: 'approve' | 'override' | 'escalate') => {
     console.log(`Agent action: ${action} for claim ${claimId}`)
+
+    const agentId = 'AGENT-001' // In real app, get from auth context
+
+    switch (action) {
+      case 'approve':
+        claimsStore.approveDecision(claimId, agentId)
+        break
+      case 'override':
+        // In real app, would show modal for reason and new decision
+        const reason = 'Manual review determined different coverage outcome'
+        const decision = getDecisionForClaim(claimId)
+        const newDecision = decision?.decision === 'covered' ? 'not-covered' : 'covered'
+        claimsStore.overrideDecision(claimId, agentId, newDecision, reason)
+        break
+      case 'escalate':
+        // In real app, would escalate to supervisor
+        console.log('Escalating to supervisor...')
+        break
+    }
   }
 
   return (
@@ -238,7 +278,14 @@ export default function AgentPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Agent Dashboard</h1>
-          <p className="text-gray-600 mt-1">Monitor AI decisions and manage claim oversight</p>
+          <p className="text-gray-600 mt-1">
+            Monitor AI decisions and manage claim oversight
+            {claimsStore.getClaims().length > 0 && (
+              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                {claimsStore.getClaims().length} live claim{claimsStore.getClaims().length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center space-x-4">
           <div className="relative">
@@ -268,13 +315,19 @@ export default function AgentPage() {
           const decision = getDecisionForClaim(claim.id)
           const isExpanded = expandedClaim === claim.id
           const auditEntries = mockAuditTrail[claim.id] || []
+          const isLiveClaim = claimsStore.getClaims().some(c => c.id === claim.id)
 
           return (
-            <div key={claim.id} className="card border-l-4 border-l-primary-500">
+            <div key={claim.id} className={`card border-l-4 ${isLiveClaim ? 'border-l-green-500 bg-green-50/30' : 'border-l-primary-500'}`}>
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center space-x-2 mb-2">
                     <h3 className="text-lg font-semibold">{claim.id}</h3>
+                    {isLiveClaim && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 animate-pulse">
+                        LIVE
+                      </span>
+                    )}
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(claim.status)}`}>
                       {claim.status}
                     </span>
@@ -452,39 +505,49 @@ export default function AgentPage() {
                 </div>
               </div>
 
-              {isExpanded && auditEntries.length > 0 && (
-                <div className="mt-4 border-t pt-4 bg-gray-50 rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-3">Decision Audit Trail</h5>
-                  <div className="space-y-3">
-                    {auditEntries.map((entry) => (
-                      <div key={entry.id} className="flex items-start space-x-3">
-                        <div className={clsx(
-                          'w-2 h-2 rounded-full mt-2',
-                          entry.actor === 'ai' ? 'bg-blue-500' : 'bg-green-500'
-                        )} />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium">{entry.action}</p>
-                            <div className="flex items-center space-x-2 text-xs text-gray-500">
-                              <span className={clsx(
-                                'px-2 py-1 rounded',
-                                entry.actor === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                              )}>
-                                {entry.actor.toUpperCase()}
-                              </span>
-                              {entry.confidence && (
-                                <span className={getConfidenceColor(entry.confidence)}>
-                                  {Math.round(entry.confidence * 100)}%
-                                </span>
-                              )}
-                              <span>{formatDate(entry.timestamp)}</span>
+              {isExpanded && (
+                <div className="mt-4 border-t pt-4 space-y-4">
+                  {/* Customer Notifications */}
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <SMSNotificationComponent claimId={claim.id} />
+                  </div>
+
+                  {/* Audit Trail */}
+                  {auditEntries.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h5 className="font-medium text-gray-900 mb-3">Decision Audit Trail</h5>
+                      <div className="space-y-3">
+                        {auditEntries.map((entry) => (
+                          <div key={entry.id} className="flex items-start space-x-3">
+                            <div className={clsx(
+                              'w-2 h-2 rounded-full mt-2',
+                              entry.actor === 'ai' ? 'bg-blue-500' : 'bg-green-500'
+                            )} />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium">{entry.action}</p>
+                                <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                  <span className={clsx(
+                                    'px-2 py-1 rounded',
+                                    entry.actor === 'ai' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                  )}>
+                                    {entry.actor.toUpperCase()}
+                                  </span>
+                                  {entry.confidence && (
+                                    <span className={getConfidenceColor(entry.confidence)}>
+                                      {Math.round(entry.confidence * 100)}%
+                                    </span>
+                                  )}
+                                  <span>{formatDate(entry.timestamp)}</span>
+                                </div>
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">{entry.details}</p>
                             </div>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{entry.details}</p>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

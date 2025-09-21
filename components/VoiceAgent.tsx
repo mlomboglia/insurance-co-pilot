@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
-import { useSpeechSynthesis } from '@/hooks/useSpeechSynthesis'
 import ConversationDisplay from './ConversationDisplay'
 import ClaimDataDisplay from './ClaimDataDisplay'
 import MicrophoneControls from './MicrophoneControls'
@@ -26,7 +25,7 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     resetTranscript
   } = useSpeechRecognition()
 
-  const { speak, isSpeaking, stop: stopSpeaking } = useSpeechSynthesis()
+  // Speech synthesis removed - text-only AI responses
 
   const [conversationState, setConversationState] = useState<ConversationState>({
     step: 'greeting',
@@ -36,10 +35,8 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
   })
 
   const [isProcessing, setIsProcessing] = useState(false)
-  const [canInterrupt, setCanInterrupt] = useState(true)
   const hasGreeted = useRef(false)
   const processingTimeoutRef = useRef<NodeJS.Timeout>()
-  const speakingTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Add message to conversation
   const addMessage = useCallback((type: ConversationMessage['type'], content: string, isProcessing = false) => {
@@ -59,43 +56,36 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     return message.id
   }, [])
 
-  // Initial greeting - run only once
+  // Initial greeting - run only once (silent, no auto-speak)
   useEffect(() => {
     if (!hasGreeted.current && conversationState.messages.length === 0) {
       const greeting = "Hello! I'm your AI assistant for roadside assistance. I'm here to help you file a claim quickly and efficiently. Please tell me about your situation, including your location and what's happening with your vehicle."
       addMessage('assistant', greeting)
-      speak(greeting)
+      // Removed auto-speak on page load
       hasGreeted.current = true
     }
-  }, [addMessage, speak, conversationState.messages.length])
+  }, [addMessage, conversationState.messages.length])
 
   // Process user speech when final transcript changes
   useEffect(() => {
-    if (finalTranscript && !isProcessing && canInterrupt) {
+    if (finalTranscript && !isProcessing) {
       processUserInput(finalTranscript)
       resetTranscript()
     }
-  }, [finalTranscript, isProcessing, canInterrupt])
+  }, [finalTranscript, isProcessing])
 
   // Mock AI processing function
   const processUserInput = async (userInput: string) => {
     if (!userInput.trim()) return
 
-    // Stop any current speaking
-    stopSpeaking()
-    if (speakingTimeoutRef.current) {
-      clearTimeout(speakingTimeoutRef.current)
-    }
-
     // Add user message
     addMessage('user', userInput)
     setIsProcessing(true)
-    setCanInterrupt(false)
 
     // Add processing message
     const processingId = addMessage('assistant', 'Let me process that information...', true)
 
-    // Simulate AI processing delay (shorter and more realistic)
+    // Simulate AI processing delay
     await new Promise(resolve => {
       processingTimeoutRef.current = setTimeout(resolve, 800)
     })
@@ -116,15 +106,8 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     setConversationState(newState)
     setIsProcessing(false)
 
-    // Add AI response
+    // Add AI response (text only)
     addMessage('assistant', response)
-
-    // Delay before speaking to allow user to read
-    speakingTimeoutRef.current = setTimeout(() => {
-      speak(response)
-      // Allow interruption after AI starts speaking
-      setTimeout(() => setCanInterrupt(true), 1000)
-    }, 500)
 
     // Notify parent components
     onConversationUpdate?.(newState)
@@ -141,9 +124,9 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     const newData = { ...currentData }
 
     // Extract name
-    const nameMatch = lowerInput.match(/my name is (\w+(?:\s+\w+)*)/i) ||
-                     lowerInput.match(/i'm (\w+(?:\s+\w+)*)/i) ||
-                     lowerInput.match(/this is (\w+(?:\s+\w+)*)/i)
+    const nameMatch = lowerInput.match(/my name is (\w+(?:\s+\w+){0,2})/i) ||
+                     lowerInput.match(/i'm (\w+(?:\s+\w+){0,2})/i) ||
+                     lowerInput.match(/this is (\w+(?:\s+\w+){0,2})(?:\s+and|$)/i)
     if (nameMatch && !newData.customerName) {
       newData.customerName = nameMatch[1].replace(/\b\w/g, l => l.toUpperCase())
     }
@@ -168,9 +151,9 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
       zipCode: ''
     }
 
-    const addressMatch = lowerInput.match(/(?:at|on|near)\s+(.+?)(?:\s+in\s+|\s*,\s*|$)/i)
-    if (addressMatch && !newData.location.address) {
-      newData.location.address = addressMatch[1]
+    const addressMatch = lowerInput.match(/(?:i'm at|located at|at|on|near)\s+([^.!?]+?)(?:\s+in\s+|\s*,\s*|\s+and\s+my|\s+my\s+car|$)/i)
+    if (addressMatch && !newData.location.address && !addressMatch[1].match(/car|vehicle|tire|battery|engine|road|highway|freeway/i)) {
+      newData.location.address = addressMatch[1].trim()
     }
 
     const cityMatch = lowerInput.match(/in\s+([a-z\s]+?)(?:\s*,\s*[a-z]{2}|$)/i)
@@ -365,12 +348,9 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
 
   // Reset conversation
   const resetConversation = () => {
-    // Clear all timeouts
+    // Clear processing timeout
     if (processingTimeoutRef.current) {
       clearTimeout(processingTimeoutRef.current)
-    }
-    if (speakingTimeoutRef.current) {
-      clearTimeout(speakingTimeoutRef.current)
     }
 
     setConversationState({
@@ -380,9 +360,7 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
       messages: []
     })
     setIsProcessing(false)
-    setCanInterrupt(true)
     resetTranscript()
-    stopSpeaking()
     hasGreeted.current = false
   }
 
@@ -391,9 +369,6 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
     return () => {
       if (processingTimeoutRef.current) {
         clearTimeout(processingTimeoutRef.current)
-      }
-      if (speakingTimeoutRef.current) {
-        clearTimeout(speakingTimeoutRef.current)
       }
     }
   }, [])
@@ -404,13 +379,11 @@ export default function VoiceAgent({ onClaimSubmit, onConversationUpdate }: Voic
       <div className="space-y-6">
         <MicrophoneControls
           isListening={isListening}
-          isSpeaking={isSpeaking}
           isSupported={isSupported}
           error={speechError}
           onStartListening={startListening}
           onStopListening={stopListening}
           onReset={resetConversation}
-          onStopSpeaking={stopSpeaking}
         />
 
         <ConversationDisplay

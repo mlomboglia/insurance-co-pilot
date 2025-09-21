@@ -4,15 +4,18 @@ import { useState } from 'react'
 import { Phone, MapPin, CheckCircle, ExternalLink } from 'lucide-react'
 import VoiceAgent from '@/components/VoiceAgent'
 import { ClaimData, ConversationState } from '@/types/conversation'
+import { claimsStore } from '@/lib/claimsStore'
+import SMSNotificationComponent from '@/components/SMSNotification'
 
 export default function CustomerPage() {
   const [submittedClaim, setSubmittedClaim] = useState<ClaimData | null>(null)
   const [conversationState, setConversationState] = useState<ConversationState | null>(null)
 
   const handleClaimSubmit = (claimData: ClaimData) => {
-    setSubmittedClaim(claimData)
-    // Here you would typically send the data to your API
-    console.log('Claim submitted:', claimData)
+    // Submit to claims store with AI analysis
+    const claimId = claimsStore.submitClaim(claimData)
+    setSubmittedClaim({ ...claimData, claimId } as any)
+    console.log('Claim submitted with ID:', claimId)
   }
 
   const handleConversationUpdate = (state: ConversationState) => {
@@ -69,13 +72,13 @@ export default function CustomerPage() {
 
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <a
-              href="/status"
+              href="/notifications"
               className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <ExternalLink className="h-5 w-5 text-primary-600" />
               <div>
-                <div className="font-medium">Track Your Claim</div>
-                <div className="text-sm text-gray-600">View real-time updates</div>
+                <div className="font-medium">View SMS Messages</div>
+                <div className="text-sm text-gray-600">See all notifications</div>
               </div>
             </a>
 
@@ -94,11 +97,16 @@ export default function CustomerPage() {
           <div className="card bg-blue-50 border-blue-200">
             <h3 className="text-lg font-semibold text-blue-900 mb-2">What's Next?</h3>
             <ul className="text-blue-800 text-sm space-y-1">
-              <li>• A roadside technician has been dispatched to your location</li>
-              <li>• You'll receive SMS updates about arrival time</li>
-              <li>• Estimated arrival: 15-30 minutes</li>
+              <li>• Your claim is being reviewed by our AI system</li>
+              <li>• You'll receive SMS updates about approval and service dispatch</li>
+              <li>• If approved, estimated technician arrival: 15-30 minutes</li>
               <li>• Emergency contact: 1-800-ROADSIDE</li>
             </ul>
+          </div>
+
+          {/* SMS Notifications */}
+          <div className="card">
+            <SMSNotificationComponent claimId={(submittedClaim as any)?.claimId} />
           </div>
         </div>
       </div>

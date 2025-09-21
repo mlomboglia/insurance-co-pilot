@@ -1,27 +1,23 @@
 'use client'
 
-import { Mic, MicOff, Square, RotateCcw, Volume2, VolumeX } from 'lucide-react'
+import { Mic, MicOff, Square, RotateCcw } from 'lucide-react'
 
 interface MicrophoneControlsProps {
   isListening: boolean
-  isSpeaking: boolean
   isSupported: boolean
   error: string | null
   onStartListening: () => void
   onStopListening: () => void
   onReset: () => void
-  onStopSpeaking: () => void
 }
 
 export default function MicrophoneControls({
   isListening,
-  isSpeaking,
   isSupported,
   error,
   onStartListening,
   onStopListening,
-  onReset,
-  onStopSpeaking
+  onReset
 }: MicrophoneControlsProps) {
   const handleMainButtonClick = () => {
     if (isListening) {
@@ -50,12 +46,9 @@ export default function MicrophoneControls({
         <div className="relative mb-6">
           <button
             onClick={handleMainButtonClick}
-            disabled={isSpeaking}
             className={`w-20 h-20 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 ${
               isListening
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse shadow-lg shadow-red-200'
-                : isSpeaking
-                ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-200'
             }`}
           >
@@ -70,11 +63,6 @@ export default function MicrophoneControls({
           {isListening && (
             <div className="absolute -inset-2 rounded-full border-2 border-red-300 animate-ping"></div>
           )}
-
-          {/* Speaking Indicator */}
-          {isSpeaking && (
-            <div className="absolute -inset-2 rounded-full border-2 border-blue-300 animate-pulse"></div>
-          )}
         </div>
 
         {/* Status Text */}
@@ -86,31 +74,13 @@ export default function MicrophoneControls({
             </div>
           )}
 
-          {isSpeaking && (
-            <div className="flex items-center justify-center space-x-2 text-blue-600">
-              <Volume2 className="h-4 w-4" />
-              <span className="font-medium">AI Speaking...</span>
-            </div>
-          )}
-
-          {!isListening && !isSpeaking && (
+          {!isListening && (
             <span className="text-gray-600">Click microphone to start</span>
           )}
         </div>
 
         {/* Control Buttons */}
         <div className="flex items-center justify-center space-x-3">
-          {/* Stop Speaking Button */}
-          {isSpeaking && (
-            <button
-              onClick={onStopSpeaking}
-              className="flex items-center space-x-2 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
-            >
-              <VolumeX className="h-4 w-4" />
-              <span className="text-sm">Stop</span>
-            </button>
-          )}
-
           {/* Stop Listening Button */}
           {isListening && (
             <button
@@ -125,7 +95,7 @@ export default function MicrophoneControls({
           {/* Reset Button */}
           <button
             onClick={onReset}
-            disabled={isListening || isSpeaking}
+            disabled={isListening}
             className="flex items-center space-x-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RotateCcw className="h-4 w-4" />
@@ -153,7 +123,7 @@ export default function MicrophoneControls({
         )}
 
         {/* Tips */}
-        {!isListening && !isSpeaking && !error && (
+        {!isListening && !error && (
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="text-left text-sm text-blue-700">
               <p className="font-medium mb-1">Tips for best results:</p>
